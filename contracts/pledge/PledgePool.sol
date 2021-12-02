@@ -34,7 +34,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
         uint256 startTime;
         uint256 matchTime;
         uint256 endTime;
-        uint64  interestRate;      // Pool fixed interest  (1e8)
+        uint256  interestRate;      // Pool fixed interest  (1e8)
         uint256 maxSupply;         // Pool max supply
         uint256 totalSupply;       // Pool actual supply
         uint256 utilization;       // Judging whether the match is successful (1e8)
@@ -71,6 +71,8 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
     event Stake(address indexed from,address indexed token,uint256 amount,uint256 mintAmount);
     event Unstake(address indexed from,address indexed token,uint256 amount,uint256 burnAmount);
     event Swap(address indexed fromCoin,address indexed toCoin,uint256 fromValue,uint256 toValue);
+    event Claim(address indexed from,address indexed toCoin,uint256 amount);
+
 
      // init info
     constructor(
@@ -86,12 +88,12 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
         lendFee = 0;
         borrowFee = 0;
         liquidationFee = 0;
-        liquidateThreshold = 2e8;
+        liquidateThreshold = 1e7;
     }
 
     /**
      * @dev Function to set commission
-     * @natice The handling fee cannot exceed 10%
+     * @notice The handling fee cannot exceed 10%
      */
     function setFee(uint256 _lendFee,uint256 _borrowFee,uint256 _liquidationFee) onlyOwner external{
         require(_lendFee<1e7 && _borrowFee<1e7 && _liquidationFee<1e7, "fee is beyond the limit");
@@ -122,7 +124,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
     function setUtilization(uint256 _pid,  uint64 _utilization) public onlyOwner {
         // update info
         PoolInfo storage pool = poolInfo[_pid];
-        if (pool.state = 0) {
+        if (pool.state == 0) {
             pool.utilization = _utilization;
         }
     }
@@ -137,7 +139,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
     /**
      * @dev Add new pool information, Can only be called by the owner.
      */
-    function addPoolInfo( uint256 _startTime,  uint256 _matchTime,  uint256 _endTime, uint64 _interestRate,
+    function addPoolInfo(uint256 _startTime,  uint256 _matchTime,  uint256 _endTime, uint64 _interestRate,
                         uint256 _maxSupply, uint256 _utilization, uint256 _pledgeRate,
                         address _borrowToken, address _spToken, address _jpToken) public onlyOwner{
         // check if token has been set ...
@@ -179,7 +181,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
      * @dev Update pool state
      */
     function updateState(uint256 _pid, uint256 _state) public onlyOwner {
-        require(_state = 0 && _state = 1 && _state = 2 && _state = 3 && _state = 4, "Not within the specified range");
+        require(_state == 0 && _state == 1 && _state == 2 && _state == 3 && _state == 4, "Not within the specified range");
         PoolInfo storage pool = poolInfo[_pid];
         pool.state = _state;
     }
@@ -271,24 +273,24 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
      * @dev Borrower pledge operation
      */
     function stake(uint256 _pid, uint256 _stakeAmount, uint256 _deadLine) external payable nonReentrant notPause limit(_pid) ensure(_deadLine){
-        require(pool.state == 0, "pool state is not 0");
         // pool info
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         TotalAmount storage total = totalInfo[_pid];
         // oracle price
         uint256[2]memory prices = getUnderlyingPriceView(_pid);
-        uint256 price = prices[1].mul(calDecimal).div(prices[0]);
-        uint256 amount = pool.borrowSupply.mul(price).div(calDecimal);
+        uint256 amount = pool.borrowSupply.mul(prices[1].mul(calDecimal).div(prices[0])).div(calDecimal);
         uint256 totalAmount = pool.maxSupply.mul(pool.pledgeRate).div(feeDecimal);
         require(totalAmount > amount, "Insufficient quantity remaining");
+        require(pool.state == 0, "pool state is not 0");
         uint256 remainAmount = totalAmount.sub(amount);
-        require(_stakeAmount.mul(price).div(calDecimal) <= remainAmount, "stake amount should be less than the remaining amount");
+        uint256 userStakeAmount = _stakeAmount.mul(prices[1].mul(calDecimal).div(prices[0])).div(calDecimal);
+        require(userStakeAmount <= remainAmount, "stake amount should be less than the remaining amount");
         amount = getPayableAmount(pool.borrowToken, _stakeAmount);
         require(amount > 0, 'stake amount is zero');
         // update info
         pool.borrowSupply = pool.borrowSupply.add(_stakeAmount);
-        pool.actualTotal1 = pool.actualTotal1.add(_stakeAmount);
+        total.actualTotal1 = total.actualTotal1.add(_stakeAmount);
         user.stakeAmount = user.stakeAmount.add(_stakeAmount);
         user.state = false;
         emit Deposit(msg.sender, pool.borrowToken, _stakeAmount, _stakeAmount);
@@ -297,23 +299,27 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
     /**
      * @dev Borrower, '1' is get back the deposit, '2' is retrieve loan and jp_token
      */
-    function claim(uint256 _pid) external payable nonReentrant notPause  {
+    function claim(uint256 _pid) external nonReentrant notPause  {
         // pool info
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         TotalAmount storage total = totalInfo[_pid];
         require(block.timestamp > pool.matchTime, "now time must be greater than match time");
         require(pool.state == 1 || pool.state == 2, "pool state not in 1 or 2");
+        require(user.stakeAmount > 0, "The user is not pledged");
         if (pool.state == 1) {
             // Get back the deposit
+            require(!user.state, "user state is not false");
             uint256 redeemAmount = user.stakeAmount;
             require(redeemAmount < total.actualTotal1, "Insufficient liquidity in the pool");
             _redeem(msg.sender,pool.borrowToken,redeemAmount);
             total.actualTotal1 = total.actualTotal1.sub(redeemAmount);
             user.state = true;
+            emit Claim(msg.sender, stakeToken, redeemAmount);
         }
         if (pool.state == 2) {
             // retrieve loan and jp_token
+            require(!user.state, "user state is not false");
             uint256[2]memory prices = getUnderlyingPriceView(_pid);
             uint256 price = prices[1].mul(calDecimal).div(prices[0]);
             // Total Margin
@@ -329,6 +335,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
             _redeem(msg.sender,stakeToken,redeemAmount);
             // update user info
             user.state = true;
+            emit Claim(msg.sender, stakeToken, redeemAmount);
         }
     }
 
@@ -341,37 +348,40 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
         TotalAmount storage total = totalInfo[_pid];
         require(block.timestamp < pool.endTime, "now time less than pool end time");
         require(pool.state == 3, "pool state is not 3");
-        uint256 jpTokenTotal = pool.JpCoin.totalSupply();
+        uint256 jpTokenTotal = pool.jpCoin.totalSupply();
         uint256 Jp_share = total.actualTotal1.mul(calDecimal).div(jpTokenTotal);
         uint256 redeemAmount = Jp_share.mul(_amount).div(calDecimal);
         require(redeemAmount <= total.actualTotal1,"Available pool liquidity is unsufficient");
         // burn jp_token
         pool.jpCoin.burn(msg.sender, _amount);
-        pool.actualTotal1 = pool.actualTotal1.sub(redeemAmount);
+        total.actualTotal1 = total.actualTotal1.sub(redeemAmount);
         // fee
-        userPayback = redeemFees(borrowFee,pool.borrowToken,redeemAmount);
+        uint256 userPayback = redeemFees(borrowFee,pool.borrowToken,redeemAmount);
         // withdraws the remaining margin
         _redeem(msg.sender,pool.borrowToken,userPayback);
+        emit Unstake(msg.sender, pool.borrowToken, _amount, userPayback);
     }
 
     /**
      * @dev Admin update pool status, match time
+     * @notice Status changes to '1' or '2'
      */
     function settle() public onlyOwner{
         for (uint256 _pid = 0; _pid < poolInfo.length; _pid++) {
             PoolInfo storage pool = poolInfo[_pid];
-            if (pool.state = 0) {
-                 require(block.timestamp >= pool.matchTime, "checkout time great than match time");
-                uint256[2]memory prices = getUnderlyingPriceView(_pid);
-                uint256 price = prices[1].mul(calDecimal).div(prices[0]);
-                uint256 totalValue = pool.borrowSupply.mul(price);
-                uint256 lowStandard = pool.totalSupply.mul(pool.utilization).div(feeDecimal);
-                uint256 highStandard = pool.totalSupply.mul(pool.pledgeRate).div(feeDecimal);
-                // update state
-                if (totalValue > lowStandard && totalValue < highStandard) {
-                    pool.state = 2;
-                } else {
-                    pool.state = 1;
+            if (pool.state == 0) {
+                if (block.timestamp > pool.matchTime) {
+                    uint256[2]memory prices = getUnderlyingPriceView(_pid);
+                    uint256 price = prices[1].mul(calDecimal).div(prices[0]);
+                    uint256 totalValue = pool.borrowSupply.mul(price);
+                    uint256 lowStandard = pool.totalSupply.mul(pool.utilization).div(feeDecimal);
+                    uint256 highStandard = pool.totalSupply.mul(pool.pledgeRate).div(feeDecimal);
+                    // update state
+                    if (totalValue > lowStandard && totalValue < highStandard) {
+                        pool.state = 2;
+                    } else {
+                        pool.state = 1;
+                    }
                 }
             }
         }
@@ -383,16 +393,66 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
     function finish(uint256 _pid) public onlyOwner{
         for (uint256 _pid = 0; _pid < poolInfo.length; _pid++) {
             PoolInfo storage pool = poolInfo[_pid];
-            if (pool.state = 2) {
-                 require(block.timestamp > pool.endTime, "now time is less than end time");
-                (address token0, address token1) = (pool.borrowToken, stakeToken);
-                ( ,uint256 amountIn) = sellExactAmount(swapRouter,token0,token1,pool.totalSupply);
-                if (amountIn >= pool.totalSuppy){
+            TotalAmount storage total = totalInfo[_pid];
+            if (pool.state == 2) {
+                if (block.timestamp > pool.endTime) {
+                    (address token0, address token1) = (pool.borrowToken, stakeToken);
+                    // sellamount
+                    uint256 rate = pool.interestRate.add(feeDecimal);
+                    uint256 sellamount = pool.totalSupply.mul(rate).div(feeDecimal);
+                    uint256 borrowAmount = getAmountIn(swapRouter,token0,token1,sellamount);
+                    ( ,uint256 amountIn) = sellExactAmount(swapRouter,token0,token1,sellamount);
+                    require(amountIn >= pool.totalSupply, "amountIn must be great than totalSupply");
                     pool.state = 3;
+                    // update actualTotal0, actualTotal1
+                    total.actualTotal0 = amountIn;
+                    total.actualTotal1 = total.actualTotal1.sub(borrowAmount);
                 }
             }
         }
     }
+
+    /**
+     * @dev Check liquidation conditions
+     */
+    function checkoutLiquidate() external onlyOwner {
+        for (uint256 _pid = 0; _pid < poolInfo.length; _pid++) {
+            PoolInfo storage pool = poolInfo[_pid];
+            if (pool.state == 2) {
+                uint256[2]memory prices = getUnderlyingPriceView(_pid);
+                if (_checkLiquidateCondition(_pid,prices)){
+                    _liquidate(_pid);
+                }
+            }
+        }
+    }
+
+    function _checkLiquidateCondition(uint256 _pid, uint256[2]memory prices) internal view returns(bool) {
+        PoolInfo storage pool = poolInfo[_pid];
+        uint256 price = prices[1].mul(calDecimal).div(prices[0]);
+        uint256 borrowValue = pool.borrowSupply.mul(price).div(calDecimal);
+        uint256 value = pool.totalSupply.mul(feeDecimal).div(pool.pledgeRate);
+        uint256 totalValue = value.mul(liquidateThreshold.add(feeDecimal));
+        return borrowValue <= totalValue;
+    }
+
+    function _liquidate(uint256 _pid) internal {
+        PoolInfo storage pool = poolInfo[_pid];
+        TotalAmount storage total = totalInfo[_pid];
+        require(block.timestamp > pool.matchTime, "now time is less than match time");
+        (address token0, address token1) = (pool.borrowToken, stakeToken);
+        // sellamount
+        uint256 rate = pool.interestRate.add(feeDecimal);
+        uint256 sellamount = pool.totalSupply.mul(rate).div(feeDecimal);
+        uint256 borrowAmount = getAmountIn(swapRouter,token0,token1,sellamount);
+        ( ,uint256 amountIn) = sellExactAmount(swapRouter,token0,token1,sellamount);
+        require(amountIn >= pool.totalSupply, "amountIn must be great than totalSupply");
+        pool.state = 3;
+        // update actualTotal0, actualTotal1
+        total.actualTotal0 = amountIn;
+        total.actualTotal1 = total.actualTotal1.sub(borrowAmount);
+    }
+
 
     /**
      * @dev Get the swap path
@@ -414,6 +474,9 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
         return amounts[0];
     }
 
+     /**
+      * @dev sell Exact Amount
+      */
     function sellExactAmount(address swapRouter,address token0,address token1,uint256 amountout) payable public returns (uint256,uint256){
         uint256 amountSell = amountout > 0 ? getAmountIn(swapRouter,token0,token1,amountout) : 0;
         return (amountSell,_swap(swapRouter,token0,token1,amountSell));
@@ -422,7 +485,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
     /**
       * @dev Swap
       */
-    function _swap(address swapRouter,address token0,address token1,uint256 amount)public returns (uint256) {
+    function _swap(address swapRouter,address token0,address token1,uint256 amount0)public returns (uint256) {
         if (token0 != address(0)){
             safeApprove(token0, address(swapRouter), uint256(-1));
         }
@@ -443,6 +506,10 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
         return amounts[amounts.length-1];
     }
 
+    function safeApprove(address token, address to, uint256 value) internal {
+        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x095ea7b3, to, value));
+        require(success && (data.length == 0 || abi.decode(data, (bool))), "!safeApprove");
+    }
 
     /**
      * @dev Get the latest oracle price
