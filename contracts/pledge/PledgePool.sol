@@ -390,7 +390,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, ImportOracle, SafeTra
     /**
      * @dev Admin update pool status, end time
      */
-    function finish(uint256 _pid) public onlyOwner{
+    function finish() public onlyOwner{
         for (uint256 _pid = 0; _pid < poolInfo.length; _pid++) {
             PoolInfo storage pool = poolInfo[_pid];
             TotalAmount storage total = totalInfo[_pid];
