@@ -70,7 +70,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
         bool claimFlag;
     }
     // Info of each user that stakes tokens.
-    mapping (uint256 => mapping (address => BorrowInfo)) public userBorrowInfo;
+    mapping (address => mapping (uint256 => BorrowInfo)) public userBorrowInfo;
 
     // Lend User Info
     struct LendInfo {
@@ -81,7 +81,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
     }
 
     // Info of each user that stakes tokens.
-    mapping (uint256 => mapping (address => LendInfo)) public userLendInfo;
+    mapping (address => mapping (uint256 => LendInfo)) public userLendInfo;
 
     // event
     event DepositLend(address indexed from,address indexed token,uint256 amount,uint256 mintAmount);
@@ -205,7 +205,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
     function depositLend(uint256 _pid, uint256 _stakeAmount) external payable nonReentrant notPause timeBefore(_pid) stateMatch(_pid){
         // limit of time and state
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
-        LendInfo storage lendInfo = userLendInfo[_pid][msg.sender];
+        LendInfo storage lendInfo = userLendInfo[msg.sender][_pid];
         // Boundary conditions
         require(_stakeAmount <= (pool.maxSupply).sub(pool.lendSupply), "depositLend: the quantity exceeds the limit");
         uint256 amount = getPayableAmount(pool.lendToken,_stakeAmount);
@@ -226,7 +226,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
     function refundLend(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateExecution(_pid){
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
-        LendInfo storage lendInfo = userLendInfo[_pid][msg.sender];
+        LendInfo storage lendInfo = userLendInfo[msg.sender][_pid];
         // limit
         require(lendInfo.stakeAmount > 0, "refundLend: not pledged");
         require(pool.lendSupply.sub(data.settleAmount0) > 0, "refundLend: not refund");
@@ -248,7 +248,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
     function claimLend(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateExecution(_pid) {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
-        LendInfo storage lendInfo = userLendInfo[_pid][msg.sender];
+        LendInfo storage lendInfo = userLendInfo[msg.sender][_pid];
         require(lendInfo.stakeAmount > 0, "claimLend: not claim sp_token");
         require(!lendInfo.claimFlag,"claimLend: again claim");
         // user of sp_token amount
@@ -270,7 +270,6 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
     function withdrawLend(uint256 _pid, uint256 _spAmount)  external nonReentrant notPause {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
-        LendInfo storage lendInfo = userLendInfo[_pid][msg.sender];
         require(_spAmount > 0, 'withdrawLend: withdraw amount is zero');
         // burn sp_token
         pool.spCoin.burn(msg.sender,_spAmount);
@@ -302,7 +301,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
     function depositBorrow(uint256 _pid, uint256 _stakeAmount, uint256 _deadLine) external payable nonReentrant notPause timeBefore(_pid) stateMatch(_pid) deadline(_deadLine){
         // base info
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
-        BorrowInfo storage borrowInfo = userBorrowInfo[_pid][msg.sender];
+        BorrowInfo storage borrowInfo = userBorrowInfo[msg.sender][_pid];
         uint256 amount = getPayableAmount(pool.borrowToken, _stakeAmount);
         require(amount > 0, 'depositBorrow: deposit amount is zero');
         // update info
@@ -322,7 +321,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
         // base info
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
-        BorrowInfo storage borrowInfo = userBorrowInfo[_pid][msg.sender];
+        BorrowInfo storage borrowInfo = userBorrowInfo[msg.sender][_pid];
         // conditions
         require(pool.borrowSupply.sub(data.settleAmount1) > 0, "refundBorrow: not refund");
         require(borrowInfo.stakeAmount > 0, "refundBorrow: not pledged");
@@ -345,7 +344,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
         // pool base info
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
-        BorrowInfo storage borrowInfo = userBorrowInfo[_pid][msg.sender];
+        BorrowInfo storage borrowInfo = userBorrowInfo[msg.sender][_pid];
         // limit
         require(borrowInfo.stakeAmount > 0, "claimBorrow: not claim jp_token");
         require(!borrowInfo.claimFlag,"claimBorrow: again claim");
@@ -370,7 +369,6 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
     function withdrawBorrow(uint256 _pid, uint256 _amount, uint256 _deadLine) external nonReentrant notPause deadline(_deadLine)  {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
-        BorrowInfo storage borrowInfo = userBorrowInfo[_pid][msg.sender];
         require(_amount > 0, 'withdrawBorrow: withdraw amount is zero');
         // burn jp token
         pool.jpCoin.burn(msg.sender,_amount);
@@ -498,8 +496,8 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
     /**
      * @dev Get the swap path
      */
-    function getSwapPath(address swapRouter,address token0,address token1) public pure returns (address[] memory path){
-        IUniswapV2Router02 IUniswap = IUniswapV2Router02(swapRouter);
+    function getSwapPath(address _swapRouter,address token0,address token1) public pure returns (address[] memory path){
+        IUniswapV2Router02 IUniswap = IUniswapV2Router02(_swapRouter);
         path = new address[](2);
         path[0] = token0 == address(0) ? IUniswap.WETH() : token0;
         path[1] = token1 == address(0) ? IUniswap.WETH() : token1;
@@ -508,8 +506,8 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
      /**
       * @dev Get input based on output
       */
-    function getAmountIn(address swapRouter,address token0,address token1,uint256 amountOut) public view returns (uint256){
-        IUniswapV2Router02 IUniswap = IUniswapV2Router02(swapRouter);
+    function getAmountIn(address _swapRouter,address token0,address token1,uint256 amountOut) public view returns (uint256){
+        IUniswapV2Router02 IUniswap = IUniswapV2Router02(_swapRouter);
         address[] memory path = getSwapPath(swapRouter,token0,token1);
         uint[] memory amounts = IUniswap.getAmountsIn(amountOut, path);
         return amounts[0];
@@ -518,23 +516,23 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
      /**
       * @dev sell Exact Amount
       */
-    function sellExactAmount(address swapRouter,address token0,address token1,uint256 amountout) payable public returns (uint256,uint256){
-        uint256 amountSell = getAmountIn(swapRouter,token0,token1,amountout);
+    function sellExactAmount(address _swapRouter,address token0,address token1,uint256 amountout) payable public returns (uint256,uint256){
+        uint256 amountSell = getAmountIn(_swapRouter,token0,token1,amountout);
         return (amountSell,_swap(swapRouter,token0,token1,amountSell));
     }
 
     /**
       * @dev Swap
       */
-    function _swap(address swapRouter,address token0,address token1,uint256 amount0)public returns (uint256) {
+    function _swap(address _swapRouter,address token0,address token1,uint256 amount0)public returns (uint256) {
         if (token0 != address(0)){
-            safeApprove(token0, address(swapRouter), uint256(-1));
+            safeApprove(token0, address(_swapRouter), uint256(-1));
         }
         if (token1 != address(0)){
-            safeApprove(token1, address(swapRouter), uint256(-1));
+            safeApprove(token1, address(_swapRouter), uint256(-1));
         }
-        IUniswapV2Router02 IUniswap = IUniswapV2Router02(swapRouter);
-        address[] memory path = getSwapPath(swapRouter,token0,token1);
+        IUniswapV2Router02 IUniswap = IUniswapV2Router02(_swapRouter);
+        address[] memory path = getSwapPath(_swapRouter,token0,token1);
         uint256[] memory amounts;
         if(token0 == address(0)){
             amounts = IUniswap.swapExactETHForTokens{value:amount0}(0, path,address(this), now+30);

@@ -14,9 +14,21 @@ contract BscPledgeOracle is Ownable {
     uint256 internal decimals = 1;
 
     constructor() public {
-        //weth => ETH/USD
-        assetsMap[uint256(0x0000000000000000000000000000000000000000)] = AggregatorV3Interface(0x8A753747A1Fa494EC906cE90E9f37563A8AF630e);
+        //  bnb/USD
+        assetsMap[uint256(0x0000000000000000000000000000000000000000)] = AggregatorV3Interface(0x2514895c72f50D8bd4B4F9b1110F0D6bD2c97526);
+        // DAI/USD
+        assetsMap[uint256(0xf2bDB4ba16b7862A1bf0BE03CD5eE25147d7F096)] = AggregatorV3Interface(0xE4eE17114774713d2De0eC0f035d4F7665fc025D);
+        // BTC/USD
+        assetsMap[uint256(0xF592aa48875a5FDE73Ba64B527477849C73787ad)] = AggregatorV3Interface(0x5741306c21795FdCBb9b265Ea0255F499DFe515C);
+        // BUSD/USD
+        assetsMap[uint256(0xdc6df65b2fa0322394a8af628ad25be7d7f413c2)] = AggregatorV3Interface(0x9331b55D9830EF609A2aBCfAc0FBCE050A52fdEa);
+
+
         decimalsMap[uint256(0x0000000000000000000000000000000000000000)] = 18;
+        decimalsMap[uint256(0xf2bDB4ba16b7862A1bf0BE03CD5eE25147d7F096)] = 18;
+        decimalsMap[uint256(0xF592aa48875a5FDE73Ba64B527477849C73787ad)] = 18;
+        decimalsMap[uint256(0xDc6dF65b2fA0322394a8af628Ad25Be7D7F413c2)] = 18;
+
     }
 
     /**
