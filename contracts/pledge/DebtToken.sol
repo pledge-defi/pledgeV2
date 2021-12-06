@@ -26,12 +26,12 @@ contract DebtToken is ERC20, AddressPrivileges {
     /**
       * @notice burn the token
       * @dev function to burn token for an asset
-      * @param _to means destory address
+      * @param _from means destory address
       * @param _amount means destory amount
       # @return true is success
       */
-    function burn(address _to,uint256 _amount) public onlyMinter returns (bool) {
-        _burn(_to, _amount);
+    function burn(address _from,uint256 _amount) public onlyMinter returns (bool) {
+        _burn(_from, _amount);
         return true;
     }
 
