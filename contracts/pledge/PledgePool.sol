@@ -196,6 +196,13 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         }
     }
 
+      /**
+     * @dev get pool state
+     */
+    function getPoolState(uint256 _pid) extenal view returns (uint256) {
+        PoolBaseInfo storage pool = poolBaseInfo[_pid];
+        return uint256(pool.state);
+    }
 
     /**
      * @dev The depositor performs the deposit operation
@@ -222,7 +229,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      * @dev Refund of excess deposit to depositor
      * @notice pool state muste be Execution
      */
-    function refundLend(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateExecution(_pid){
+    function refundLend(uint256 _pid) external nonReentrant notPause timeAfter(_pid) {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
         LendInfo storage lendInfo = userLendInfo[msg.sender][_pid];
@@ -244,7 +251,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      * @dev Depositor receives sp_token
      * @notice pool state muste be Execution
      */
-    function claimLend(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateExecution(_pid) {
+    function claimLend(uint256 _pid) external nonReentrant notPause timeAfter(_pid) {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
         LendInfo storage lendInfo = userLendInfo[msg.sender][_pid];
@@ -316,7 +323,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      * @dev Refund of excess deposit to borrower
      * @notice pool state muste be Execution
      */
-    function refundBorrow(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateExecution(_pid){
+    function refundBorrow(uint256 _pid) external nonReentrant notPause timeAfter(_pid){
         // base info
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
@@ -339,7 +346,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      * @dev Borrower receives sp_token and loan funds
      * @notice pool state muste be Execution
      */
-    function claimBorrow(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateExecution(_pid)  {
+    function claimBorrow(uint256 _pid) external nonReentrant notPause timeAfter(_pid)  {
         // pool base info
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
@@ -364,29 +371,28 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     /**
      * @dev The borrower withdraws the remaining margin
      */
-    function withdrawBorrow(uint256 _pid, uint256 _amount, uint256 _deadLine) external nonReentrant notPause deadline(_deadLine)  {
+    function withdrawBorrow(uint256 _pid, uint256 _jpAmount, uint256 _deadLine) external nonReentrant notPause deadline(_deadLine)  {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
-        require(_amount > 0, 'withdrawBorrow: withdraw amount is zero');
+        require(_jpAmount > 0, 'withdrawBorrow: withdraw amount is zero');
         // burn jp token
-        pool.jpCoin.burn(msg.sender,_amount);
+        pool.jpCoin.burn(msg.sender,_jpAmount);
         // jp share
-        uint256 totalSpAmount = data.settleAmount0.mul(pool.pledgeRate.add(feeDecimal)).div(feeDecimal);
-        uint256 totalJpAmount = totalSpAmount.mul(pool.pledgeRate).div(feeDecimal);
-        uint256 jpShare = _amount.mul(calDecimal).div(totalJpAmount);
+        uint256 totalJpAmount = data.settleAmount0.mul(pool.pledgeRate).div(feeDecimal);
+        uint256 jpShare = _jpAmount.mul(calDecimal).div(totalJpAmount);
         // finish
         if (pool.state == PoolState.FINISH) {
             require(block.timestamp > pool.endTime, "withdrawBorrow: less than end time");
             uint256 redeemAmount = jpShare.mul(data.finishAmount1).div(calDecimal);
             _redeem(msg.sender,pool.borrowToken,redeemAmount);
-            emit WithdrawBorrow(msg.sender, pool.borrowToken, _amount, redeemAmount);
+            emit WithdrawBorrow(msg.sender, pool.borrowToken, _jpAmount, redeemAmount);
         }
         // liquition
         if (pool.state == PoolState.LIQUIDATION){
             require(block.timestamp > pool.matchTime, "withdrawBorrow: less than match time");
             uint256 redeemAmount = jpShare.mul(data.liquidationAmoun1).div(calDecimal);
             _redeem(msg.sender,pool.borrowToken,redeemAmount);
-            emit WithdrawBorrow(msg.sender, pool.borrowToken, _amount, redeemAmount);
+            emit WithdrawBorrow(msg.sender, pool.borrowToken, _jpAmount, redeemAmount);
         }
     }
 
@@ -429,22 +435,35 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         (address token0, address token1) = (pool.borrowToken, pool.lendToken);
         // sellAmount = (lend*(1+rate))*(1+lendFee)
         uint256 lendAmount = data.settleAmount0.mul(pool.interestRate.add(feeDecimal)).div(feeDecimal);
-        uint256 sellAmount = lendAmount.mul(lendFee.add(feeDecimal)).div(feeDecimal);
-        // amountSell-Represents the amount of ETH sold， amountIn-Represents the amount of BUSD purchased
-        (uint256 amountSell,uint256 amountIn) = sellExactAmount(swapRouter,token0,token1,sellAmount);
-        // lendFee
-        uint256 feeLend = amountIn.sub(lendAmount);
-        if (feeLend > 0 ){
-            _redeem(feeAddress,pool.lendToken, feeLend);
+        if (lendFee > 0) {
+            // lend fee
+            uint256 sellAmount = lendAmount.mul(lendFee.add(feeDecimal)).div(feeDecimal);
+            (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,sellAmount);
+            require(amountIn >= lendAmount, "finish: Slippage is too high");
+            uint256 feeAmount = amountIn.sub(lendAmount) ;
+            _redeem(feeAddress,pool.lendToken, feeAmount);
+            data.finishAmount0 = lendAmount;
+            // borrow fee
+            if (borrowFee > 0 ){
+                uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
+                _redeem(feeAddress,pool.borrowToken, feeBorrow);
+                data.finishAmount1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
+            } else {
+                data.finishAmount1 = data.settleAmount1.sub(amountSell);
+            }
+        }else {
+            (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,lendAmount);
+            require(amountIn >= lendAmount, "finish: Slippage is too high");
+            data.finishAmount0 = lendAmount;
+            // borrow Fee
+            if (borrowFee > 0 ){
+                uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
+                _redeem(feeAddress,pool.borrowToken, feeBorrow);
+                data.finishAmount1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
+            } else {
+                data.finishAmount1 = data.settleAmount1.sub(amountSell);
+            }
         }
-        // borrowFee
-        uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
-        if (feeBorrow > 0 ){
-            _redeem(feeAddress,pool.borrowToken, feeBorrow);
-        }
-        // update pool data info
-        data.finishAmount0 = lendAmount;
-        data.finishAmount1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
         // update pool state
         pool.state = PoolState.FINISH;
     }
@@ -471,21 +490,36 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         // sellamount
         (address token0, address token1) = (pool.borrowToken, pool.lendToken);
         uint256 lendAmount = data.settleAmount0.mul(pool.interestRate.add(feeDecimal)).div(feeDecimal);
-        uint256 sellAmount = lendAmount.mul(lendFee.add(feeDecimal)).div(feeDecimal);
-        (uint256 amountSell,uint256 amountIn) = sellExactAmount(swapRouter,token0,token1,sellAmount);
-        // lendFee
-        uint256 feeLend = amountIn.sub(lendAmount);
-        if (feeLend > 0 ){
-            _redeem(feeAddress,pool.lendToken, feeLend);
+        if (lendFee > 0) {
+            // lend fee
+            uint256 sellAmount = lendAmount.mul(lendFee.add(feeDecimal)).div(feeDecimal);
+            (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,sellAmount);
+            // Slippage is not considered for liquidation
+            if (amountIn > lendAmount) {
+                uint256 feeAmount = amountIn.sub(lendAmount) ;
+                _redeem(feeAddress,pool.lendToken, feeAmount);
+            }
+            data.liquidationAmoun0 = amountIn;
+            // borrow fee
+            if (borrowFee > 0 ){
+                uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
+                _redeem(feeAddress,pool.borrowToken, feeBorrow);
+                data.liquidationAmoun1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
+            } else {
+                data.liquidationAmoun1 = data.settleAmount1.sub(amountSell);
+            }
+        }else {
+            (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,lendAmount);
+            data.liquidationAmoun0 = amountIn;
+            // borrow Fee
+            if (borrowFee > 0 ){
+                uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
+                _redeem(feeAddress,pool.borrowToken, feeBorrow);
+                data.liquidationAmoun1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
+            } else {
+                data.liquidationAmoun1 = data.settleAmount1.sub(amountSell);
+            }
         }
-        // borrowFee
-        uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
-        if (feeBorrow > 0 ){
-            _redeem(feeAddress,pool.borrowToken, feeBorrow);
-        }
-        // update pool data info
-        data.liquidationAmoun0 = lendAmount;
-        data.liquidationAmoun1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
         // update pool state
         pool.state = PoolState.LIQUIDATION;
     }
@@ -494,7 +528,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     /**
      * @dev Get the swap path
      */
-    function getSwapPath(address _swapRouter,address token0,address token1) public pure returns (address[] memory path){
+    function _getSwapPath(address _swapRouter,address token0,address token1) internal pure returns (address[] memory path){
         IUniswapV2Router02 IUniswap = IUniswapV2Router02(_swapRouter);
         path = new address[](2);
         path[0] = token0 == address(0) ? IUniswap.WETH() : token0;
@@ -504,9 +538,9 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      /**
       * @dev Get input based on output
       */
-    function getAmountIn(address _swapRouter,address token0,address token1,uint256 amountOut) public view returns (uint256){
+    function _getAmountIn(address _swapRouter,address token0,address token1,uint256 amountOut) internal view returns (uint256){
         IUniswapV2Router02 IUniswap = IUniswapV2Router02(_swapRouter);
-        address[] memory path = getSwapPath(swapRouter,token0,token1);
+        address[] memory path = _getSwapPath(swapRouter,token0,token1);
         uint[] memory amounts = IUniswap.getAmountsIn(amountOut, path);
         return amounts[0];
     }
@@ -514,23 +548,23 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      /**
       * @dev sell Exact Amount
       */
-    function sellExactAmount(address _swapRouter,address token0,address token1,uint256 amountout) payable public returns (uint256,uint256){
-        uint256 amountSell = getAmountIn(_swapRouter,token0,token1,amountout);
+    function _sellExactAmount(address _swapRouter,address token0,address token1,uint256 amountout) internal returns (uint256,uint256){
+        uint256 amountSell = _getAmountIn(_swapRouter,token0,token1,amountout);
         return (amountSell,_swap(swapRouter,token0,token1,amountSell));
     }
 
     /**
       * @dev Swap
       */
-    function _swap(address _swapRouter,address token0,address token1,uint256 amount0)public returns (uint256) {
+    function _swap(address _swapRouter,address token0,address token1,uint256 amount0) internal returns (uint256) {
         if (token0 != address(0)){
-            safeApprove(token0, address(_swapRouter), uint256(-1));
+            _safeApprove(token0, address(_swapRouter), uint256(-1));
         }
         if (token1 != address(0)){
-            safeApprove(token1, address(_swapRouter), uint256(-1));
+            _safeApprove(token1, address(_swapRouter), uint256(-1));
         }
         IUniswapV2Router02 IUniswap = IUniswapV2Router02(_swapRouter);
-        address[] memory path = getSwapPath(_swapRouter,token0,token1);
+        address[] memory path = _getSwapPath(_swapRouter,token0,token1);
         uint256[] memory amounts;
         if(token0 == address(0)){
             amounts = IUniswap.swapExactETHForTokens{value:amount0}(0, path,address(this), now+30);
@@ -546,7 +580,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     /**
      * @dev Approve
      */
-    function safeApprove(address token, address to, uint256 value) internal {
+    function _safeApprove(address token, address to, uint256 value) internal {
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x095ea7b3, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), "!safeApprove");
     }
@@ -593,11 +627,6 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     modifier stateMatch(uint256 _pid) {
         require(poolBaseInfo[_pid].state == PoolState.MATCH, "Pool status is not equal to match");
-        _;
-    }
-
-    modifier stateExecution(uint256 _pid) {
-        require(poolBaseInfo[_pid].state == PoolState.EXECUTION, "Pool status is not equal to execution");
         _;
     }
 
