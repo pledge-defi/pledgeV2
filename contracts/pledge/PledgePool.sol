@@ -199,7 +199,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
       /**
      * @dev get pool state
      */
-    function getPoolState(uint256 _pid) extenal view returns (uint256) {
+    function getPoolState(uint256 _pid) public view returns (uint256) {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         return uint256(pool.state);
     }
@@ -216,12 +216,17 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         require(_stakeAmount <= (pool.maxSupply).sub(pool.lendSupply), "depositLend: the quantity exceeds the limit");
         uint256 amount = getPayableAmount(pool.lendToken,_stakeAmount);
         require(amount > 100e18, "min amount is 100");
-        // pool total supply
-        pool.lendSupply = pool.lendSupply.add(_stakeAmount);
+
         // Save lend user information
-        lendInfo.stakeAmount = lendInfo.stakeAmount.add(_stakeAmount);
         lendInfo.claimFlag = false;
         lendInfo.refundFlag = false;
+        if (pool.lendToken == address(0)){
+            lendInfo.stakeAmount = lendInfo.stakeAmount + msg.value;
+            pool.lendSupply = pool.lendSupply + msg.value;
+        } else {
+            lendInfo.stakeAmount = lendInfo.stakeAmount.add(_stakeAmount);
+            pool.lendSupply = pool.lendSupply.add(_stakeAmount);
+        }
         emit DepositLend(msg.sender, pool.lendToken, _stakeAmount, amount);
     }
 
@@ -310,12 +315,18 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         BorrowInfo storage borrowInfo = userBorrowInfo[msg.sender][_pid];
         uint256 amount = getPayableAmount(pool.borrowToken, _stakeAmount);
         require(amount > 0, 'depositBorrow: deposit amount is zero');
-        // update info
-        pool.borrowSupply = pool.borrowSupply.add(_stakeAmount);
         // save user infomation
-        borrowInfo.stakeAmount = borrowInfo.stakeAmount.add(_stakeAmount);
         borrowInfo.claimFlag = false;
         borrowInfo.refundFlag = false;
+        if (pool.borrowToken == address(0)){
+            borrowInfo.stakeAmount = borrowInfo.stakeAmount + msg.value;
+            // update info
+            pool.borrowSupply = pool.borrowSupply + msg.value;
+        } else{
+            borrowInfo.stakeAmount = borrowInfo.stakeAmount.add(_stakeAmount);
+            // update info
+            pool.borrowSupply = pool.borrowSupply.add(_stakeAmount);
+        }
         emit DepositBorrow(msg.sender, pool.borrowToken, _stakeAmount, amount);
     }
 
