@@ -21,7 +21,7 @@ contract BscPledgeOracle is Ownable {
         // BTC/USD
         assetsMap[uint256(0xF592aa48875a5FDE73Ba64B527477849C73787ad)] = AggregatorV3Interface(0x5741306c21795FdCBb9b265Ea0255F499DFe515C);
         // BUSD/USD
-        assetsMap[uint256(0xdc6df65b2fa0322394a8af628ad25be7d7f413c2)] = AggregatorV3Interface(0x9331b55D9830EF609A2aBCfAc0FBCE050A52fdEa);
+        assetsMap[uint256(0xDc6dF65b2fA0322394a8af628Ad25Be7D7F413c2)] = AggregatorV3Interface(0x9331b55D9830EF609A2aBCfAc0FBCE050A52fdEa);
 
 
         decimalsMap[uint256(0x0000000000000000000000000000000000000000)] = 18;
