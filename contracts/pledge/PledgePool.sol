@@ -3,15 +3,15 @@
 pragma solidity =0.6.12;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "../library/SafeTransfer.sol";
 import "../interface/IDebtToken.sol";
 import "../interface/IBscPledgeOracle.sol";
 import "../interface/IUniswapV2Router02.sol";
-import "./AddressPrivileges.sol";
 
 
-contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
+
+contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -172,12 +172,11 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
     /**
      * @dev Update pool information, Can only be called by the owner.
      */
-    function updatePoolBaseInfo(uint256 _pid, uint64 _interestRate, uint256 _maxSupply, uint256 _pledgeRate) public onlyOwner{
+    function updatePoolBaseInfo(uint256 _pid, uint64 _interestRate, uint256 _maxSupply) public onlyOwner{
         // Update pool information based on _pid
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         pool.interestRate = _interestRate;
         pool.maxSupply = _maxSupply;
-        pool.pledgeRate = _pledgeRate;
     }
 
     /**
@@ -253,7 +252,7 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
         require(!lendInfo.claimFlag,"claimLend: again claim");
         // user of sp_token amount
         uint256 userShare = lendInfo.stakeAmount.mul(calDecimal).div(pool.lendSupply);
-        // totalSpAmount = amount0*(rate+1)
+        // totalSpAmount = amount0*(interestRate+1)
         uint256 totalSpAmount = data.settleAmount0.mul(pool.interestRate.add(feeDecimal)).div(feeDecimal);
         uint256 spAmount = totalSpAmount.mul(userShare).div(calDecimal);
         // mint sp token
@@ -348,16 +347,15 @@ contract PledgePool is ReentrancyGuard, AddressPrivileges, SafeTransfer{
         // limit
         require(borrowInfo.stakeAmount > 0, "claimBorrow: not claim jp_token");
         require(!borrowInfo.claimFlag,"claimBorrow: again claim");
-        // Calculate the number of Jp-TOKEN
-        uint256 totalSpAmount = data.settleAmount0.mul(pool.pledgeRate.add(feeDecimal)).div(feeDecimal);
-        uint256 totalJpAmount = totalSpAmount.mul(pool.pledgeRate).div(feeDecimal);
+        // total jp amount = settleAmount0 * pledgeRate
+        uint256 totalJpAmount = data.settleAmount0.mul(pool.pledgeRate).div(feeDecimal);
         uint256 userShare = borrowInfo.stakeAmount.mul(calDecimal).div(pool.borrowSupply);
         uint256 jpAmount = totalJpAmount.mul(userShare).div(calDecimal);
         // mint jp token
         pool.jpCoin.mint(msg.sender, jpAmount);
         // claim loan funds
         uint256 borrowAmount = data.settleAmount0.mul(userShare).div(calDecimal);
-        _redeem(msg.sender,pool.borrowToken,borrowAmount);
+        _redeem(msg.sender,pool.lendToken,borrowAmount);
         // update user info
         borrowInfo.claimFlag = true;
         emit ClaimBorrow(msg.sender, pool.borrowToken, jpAmount);
