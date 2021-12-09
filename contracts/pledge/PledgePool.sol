@@ -202,7 +202,6 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         require(_stakeAmount <= (pool.maxSupply).sub(pool.lendSupply), "depositLend: the quantity exceeds the limit");
         uint256 amount = getPayableAmount(pool.lendToken,_stakeAmount);
         require(amount > minAmount, "depositLend: min amount is 100");
-
         // Save lend user information
         lendInfo.claimFlag = false;
         lendInfo.refundFlag = false;
@@ -425,12 +424,16 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         emit EmergencyBorrowWithdrawal(msg.sender, pool.borrowToken, borrowInfo.stakeAmount);
     }
 
-
-
+    /**
+     * @dev Can it be settle
+     */
     function checkoutSettle(uint256 _pid) public view returns(bool){
         return block.timestamp > poolBaseInfo[_pid].matchTime;
     }
 
+    /**
+     * @dev  Settle
+     */
     function settle(uint256 _pid) public onlyOwner {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
@@ -449,9 +452,9 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
                 // total lend less than total borrow
                 data.settleAmount0 = pool.lendSupply;
                 data.settleAmount1 = pool.lendSupply.mul(pool.pledgeRate).div(prices[1].mul(feeDecimal).div(prices[0]));
-                // update pool state
-                pool.state = PoolState.EXECUTION;
             }
+            // update pool state
+            pool.state = PoolState.EXECUTION;
         } else {
             // extreme case
             pool.state = PoolState.UNDONE;
@@ -460,10 +463,16 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         }
     }
 
+    /**
+     * @dev Can it be finish
+     */
     function checkoutFinish(uint256 _pid) public view returns(bool){
         return block.timestamp > poolBaseInfo[_pid].endTime;
     }
 
+    /**
+     * @dev finish
+     */
     function finish(uint256 _pid) public onlyOwner {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
@@ -473,35 +482,22 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         (address token0, address token1) = (pool.borrowToken, pool.lendToken);
         // sellAmount = (lend*(1+rate))*(1+lendFee)
         uint256 lendAmount = data.settleAmount0.mul(pool.interestRate.add(feeDecimal)).div(feeDecimal);
-        if (lendFee > 0) {
-            // lend fee
-            uint256 sellAmount = lendAmount.mul(lendFee.add(feeDecimal)).div(feeDecimal);
-            (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,sellAmount);
-            require(amountIn >= lendAmount, "finish: Slippage is too high");
+        uint256 sellAmount = lendAmount.mul(lendFee.add(feeDecimal)).div(feeDecimal);
+        (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,sellAmount);
+        // '>' lend fee is not 0 , '=' lendfee is 0
+        require(amountIn >= lendAmount, "finish: Slippage is too high");
+        if (amountIn > lendAmount) {
             uint256 feeAmount = amountIn.sub(lendAmount) ;
+            // lend fee
             _redeem(feeAddress,pool.lendToken, feeAmount);
-            data.finishAmount0 = lendAmount;
-            // borrow fee
-            if (borrowFee > 0 ){
-                uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
-                _redeem(feeAddress,pool.borrowToken, feeBorrow);
-                data.finishAmount1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
-            } else {
-                data.finishAmount1 = data.settleAmount1.sub(amountSell);
-            }
+            data.finishAmount0 = amountIn.sub(feeAmount);
         }else {
-            (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,lendAmount);
-            require(amountIn >= lendAmount, "finish: Slippage is too high");
-            data.finishAmount0 = lendAmount;
-            // borrow Fee
-            if (borrowFee > 0 ){
-                uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
-                _redeem(feeAddress,pool.borrowToken, feeBorrow);
-                data.finishAmount1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
-            } else {
-                data.finishAmount1 = data.settleAmount1.sub(amountSell);
-            }
+            data.finishAmount0 = amountIn;
         }
+        // borrow fee
+        uint256 remianNowAmount = data.settleAmount1.sub(amountSell);
+        uint256 remianLendAmount = redeemFees(lendFee,pool.lendToken,remianNowAmount);
+        data.finishAmount1 = remianLendAmount;
         // update pool state
         pool.state = PoolState.FINISH;
     }
@@ -529,39 +525,38 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         // sellamount
         (address token0, address token1) = (pool.borrowToken, pool.lendToken);
         uint256 lendAmount = data.settleAmount0.mul(pool.interestRate.add(feeDecimal)).div(feeDecimal);
-        if (lendFee > 0) {
+        // Add lend fee
+        uint256 sellAmount = lendAmount.mul(lendFee.add(feeDecimal)).div(feeDecimal);
+        (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,sellAmount);
+        // There may be slippage, amountIn - lendAmount < 0;
+        if (amountIn > lendAmount) {
+            uint256 feeAmount = amountIn.sub(lendAmount) ;
             // lend fee
-            uint256 sellAmount = lendAmount.mul(lendFee.add(feeDecimal)).div(feeDecimal);
-            (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,sellAmount);
-            // Slippage is not considered for liquidation
-            if (amountIn > lendAmount) {
-                uint256 feeAmount = amountIn.sub(lendAmount) ;
-                _redeem(feeAddress,pool.lendToken, feeAmount);
-            }
-            data.liquidationAmoun0 = amountIn;
-            // borrow fee
-            if (borrowFee > 0 ){
-                uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
-                _redeem(feeAddress,pool.borrowToken, feeBorrow);
-                data.liquidationAmoun1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
-            } else {
-                data.liquidationAmoun1 = data.settleAmount1.sub(amountSell);
-            }
+            _redeem(feeAddress,pool.lendToken, feeAmount);
+            data.liquidationAmoun0 = amountIn.sub(feeAmount);
         }else {
-            (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,lendAmount);
             data.liquidationAmoun0 = amountIn;
-            // borrow Fee
-            if (borrowFee > 0 ){
-                uint256 feeBorrow = (data.settleAmount1.sub(amountSell)).mul(borrowFee).div(feeDecimal);
-                _redeem(feeAddress,pool.borrowToken, feeBorrow);
-                data.liquidationAmoun1 = data.settleAmount1.sub(amountSell.add(feeBorrow));
-            } else {
-                data.liquidationAmoun1 = data.settleAmount1.sub(amountSell);
-            }
         }
+        // liquidationAmoun1  borrow Fee
+        uint256 remianNowAmount = data.settleAmount1.sub(amountSell);
+        uint256 remianBorrowAmount = redeemFees(borrowFee,pool.borrowToken,remianNowAmount);
+        data.liquidationAmoun1 = remianBorrowAmount;
         // update pool state
         pool.state = PoolState.LIQUIDATION;
     }
+
+
+    /**
+     * @dev Fee calculation
+     */
+    function redeemFees(uint256 feeRatio,address token,uint256 amount) internal returns (uint256){
+        uint256 fee = amount.mul(feeRatio)/feeDecimal;
+        if (fee>0){
+            _redeem(feeAddress,token, fee);
+        }
+        return amount.sub(fee);
+    }
+
 
 
     /**
@@ -588,9 +583,8 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
       * @dev sell Exact Amount
       */
     function _sellExactAmount(address _swapRouter,address token0,address token1,uint256 amountout) internal returns (uint256,uint256){
-        int256 amountSell = amountout > 0 ? getAmountIn(swapRouter,token0,token1,amountout) : 0;
-//        uint256 amountSell = _getAmountIn(_swapRouter,token0,token1,amountout);
-        return (amountSell,_swap(swapRouter,token0,token1,amountSell));
+        uint256 amountSell = amountout > 0 ? _getAmountIn(swapRouter,token0,token1,amountout) : 0;
+        return (amountSell,_swap(_swapRouter,token0,token1,amountSell));
     }
 
     /**

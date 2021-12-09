@@ -371,19 +371,6 @@
   },
   {
     "inputs": [],
-    "name": "autoLiquidateThreshold",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "borrowFee",
     "outputs": [
       {
@@ -524,6 +511,11 @@
         "internalType": "address",
         "name": "_jpToken",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_autoLiquidateThreshold",
+        "type": "uint256"
       }
     ],
     "name": "createPoolInfo",
@@ -690,6 +682,19 @@
   },
   {
     "inputs": [],
+    "name": "minAmount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "oracle",
     "outputs": [
       {
@@ -796,6 +801,11 @@
         "internalType": "contract IDebtToken",
         "name": "jpCoin",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "autoLiquidateThreshold",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -996,6 +1006,11 @@
       {
         "internalType": "uint256",
         "name": "_maxSupply",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_autoLiquidateThreshold",
         "type": "uint256"
       }
     ],
