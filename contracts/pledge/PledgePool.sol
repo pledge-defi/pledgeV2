@@ -496,7 +496,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         }
         // borrow fee
         uint256 remianNowAmount = data.settleAmount1.sub(amountSell);
-        uint256 remianLendAmount = redeemFees(lendFee,pool.lendToken,remianNowAmount);
+        uint256 remianLendAmount = redeemFees(lendFee,pool.borrowToken,remianNowAmount);
         data.finishAmount1 = remianLendAmount;
         // update pool state
         pool.state = PoolState.FINISH;
