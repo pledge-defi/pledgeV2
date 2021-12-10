@@ -469,7 +469,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_matchTime",
+        "name": "_settleTime",
         "type": "uint256"
       },
       {
@@ -489,7 +489,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_pledgeRate",
+        "name": "_martgageRate",
         "type": "uint256"
       },
       {
@@ -656,6 +656,19 @@
   },
   {
     "inputs": [],
+    "name": "globalPaused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "lendFee",
     "outputs": [
       {
@@ -720,19 +733,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "paused",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -744,7 +744,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "matchTime",
+        "name": "settleTime",
         "type": "uint256"
       },
       {
@@ -774,7 +774,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "pledgeRate",
+        "name": "martgageRate",
         "type": "uint256"
       },
       {
@@ -823,32 +823,32 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "settleAmount0",
+        "name": "settleAmountLend",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "settleAmount1",
+        "name": "settleAmountBorrow",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "finishAmount0",
+        "name": "finishAmountLend",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "finishAmount1",
+        "name": "finishAmountBorrow",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "liquidationAmoun0",
+        "name": "liquidationAmounLend",
         "type": "uint256"
       },
       {
         "internalType": "uint256",
-        "name": "liquidationAmoun1",
+        "name": "liquidationAmounBorrow",
         "type": "uint256"
       }
     ],
@@ -928,6 +928,19 @@
       }
     ],
     "name": "setFeeAddress",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_minAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMinAmount",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1046,12 +1059,12 @@
       },
       {
         "internalType": "bool",
-        "name": "refundFlag",
+        "name": "hasNoRefund",
         "type": "bool"
       },
       {
         "internalType": "bool",
-        "name": "claimFlag",
+        "name": "hasNoClaim",
         "type": "bool"
       }
     ],
@@ -1085,12 +1098,12 @@
       },
       {
         "internalType": "bool",
-        "name": "refundFlag",
+        "name": "hasNoRefund",
         "type": "bool"
       },
       {
         "internalType": "bool",
-        "name": "claimFlag",
+        "name": "hasNoClaim",
         "type": "bool"
       }
     ],
