@@ -268,8 +268,8 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         require(!lendInfo.hasNoClaim,"claimLend: again claim");
         // user share = Current pledge amount / total amount
         uint256 userShare = lendInfo.stakeAmount.mul(calDecimal).div(pool.lendSupply);
-        // totalSpAmount = settleAmountLend*(interestRate+1)
-        uint256 totalSpAmount = data.settleAmountLend.mul(pool.interestRate.add(baseDecimal)).div(baseDecimal);
+        // totalSpAmount = settleAmountLend
+        uint256 totalSpAmount = data.settleAmountLend;
         // user sp amount = totalSpAmount * user share
         uint256 spAmount = totalSpAmount.mul(userShare).div(calDecimal);
         // mint sp token
@@ -290,7 +290,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         // burn sp_token
         pool.spCoin.burn(msg.sender,_spAmount);
         // Calculate the destruction share
-        uint256 totalSpAmount = data.settleAmountLend.mul(pool.interestRate.add(baseDecimal)).div(baseDecimal);
+        uint256 totalSpAmount = data.settleAmountLend;
         // sp share = _spAmount/totalSpAmount
         uint256 spShare = _spAmount.mul(calDecimal).div(totalSpAmount);
         // FINISH
