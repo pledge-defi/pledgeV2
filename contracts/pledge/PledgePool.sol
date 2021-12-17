@@ -105,6 +105,10 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         address _swapRouter,
         address payable _feeAddress
     ) public {
+        require(_oracle != address(0), "Is zero address");
+        require(_swapRouter != address(0), "Is zero address");
+        require(_feeAddress != address(0), "Is zero address");
+
         oracle = IBscPledgeOracle(_oracle);
         swapRouter = _swapRouter;
         feeAddress = _feeAddress;
@@ -126,6 +130,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      * @notice Only allow administrators to operate
      */
     function setSwapRouterAddress(address _swapRouter) onlyOwner external{
+        require(_swapRouter != address(0), "Is zero address");
         swapRouter = _swapRouter;
     }
 
@@ -134,6 +139,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      * @notice Only allow administrators to operate
      */
     function setFeeAddress(address payable _feeAddress) onlyOwner external {
+        require(_feeAddress != address(0), "Is zero address");
         feeAddress = _feeAddress;
     }
 
@@ -160,6 +166,9 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
                     address _spToken, address _jpToken, uint256 _autoLiquidateThreshold) public onlyOwner{
         // check if token has been set ...
         require(_endTime > _settleTime, "createPool:end time grate than settle time");
+        require(_jpToken != address(0), "createPool:is zero address");
+        require(_spToken != address(0), "createPool:is zero address");
+
         poolBaseInfo.push(PoolBaseInfo({
             settleTime: _settleTime,
             endTime: _endTime,
@@ -209,6 +218,8 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     /**
      * @dev The depositor performs the deposit operation
      * @notice pool state muste be MATCH
+     * @param _pid is pool index
+     * @param _stakeAmount is user stake amount
      */
     function depositLend(uint256 _pid, uint256 _stakeAmount) external payable nonReentrant notPause timeBefore(_pid) stateMatch(_pid){
         // limit of time and state
@@ -217,7 +228,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         // Boundary conditions
         require(_stakeAmount <= (pool.maxSupply).sub(pool.lendSupply), "depositLend: the quantity exceeds the limit");
         uint256 amount = getPayableAmount(pool.lendToken,_stakeAmount);
-        require(amount > minAmount, "depositLend: min amount is 100");
+        require(amount > minAmount, "depositLend: less than min amount");
         // Save lend user information
         lendInfo.hasNoClaim = false;
         lendInfo.hasNoRefund = false;
@@ -234,6 +245,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     /**
      * @dev Refund of excess deposit to depositor
      * @notice Pool status is not equal to match and undone
+     * @param _pid is pool index
      */
     function refundLend(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateNotMatchUndone(_pid){
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
@@ -258,6 +270,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     /**
      * @dev Depositor receives sp_token
      * @notice Pool status is not equal to match and undone
+     * @param _pid is pool index
      */
     function claimLend(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateNotMatchUndone(_pid){
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
@@ -282,6 +295,8 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     /**
      * @dev Depositors withdraw the principal and interest
      * @notice The status of the pool may be finish or liquidation
+     * @param _pid is pool index
+     * @param _spAmount is burn sp amount
      */
     function withdrawLend(uint256 _pid, uint256 _spAmount)  external nonReentrant notPause stateFinishLiquidation(_pid) {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
@@ -316,6 +331,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      /**
      * @dev Emergency withdrawal of Lend
      * @notice pool state must be undone
+     * @param _pid is pool index
      */
     function emergencyLendWithdrawal(uint256 _pid) external nonReentrant notPause stateUndone(_pid){
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
@@ -336,6 +352,9 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     /**
      * @dev Borrower pledge operation
+     * @param _pid is pool index
+     * @param _stakeAmount is number of user pledges
+     * @param _deadLine is final deadline
      */
     function depositBorrow(uint256 _pid, uint256 _stakeAmount, uint256 _deadLine) external payable nonReentrant notPause timeBefore(_pid) stateMatch(_pid) timeDeadline(_deadLine){
         // base info
@@ -361,6 +380,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
      /**
      * @dev Refund of excess deposit to borrower
      * @notice Pool status is not equal to match and undone
+     * @param _pid is pool state
      */
     function refundBorrow(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateNotMatchUndone(_pid){
         // base info
@@ -385,6 +405,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     /**
      * @dev Borrower receives sp_token and loan funds
      * @notice Pool status is not equal to match and undone
+     * @param _pid is pool state
      */
     function claimBorrow(uint256 _pid) external nonReentrant notPause timeAfter(_pid) stateNotMatchUndone(_pid)  {
         // pool base info
@@ -410,6 +431,9 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     /**
      * @dev The borrower withdraws the remaining margin
+     * @param _pid is pool state
+     * @param _jpAmount is number of users destroying JPtoken
+     * @param _deadLine is final deadline
      */
     function withdrawBorrow(uint256 _pid, uint256 _jpAmount, uint256 _deadLine) external nonReentrant notPause timeDeadline(_deadLine) stateFinishLiquidation(_pid) {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
@@ -439,6 +463,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     /**
      * @dev Emergency withdrawal of Borrow
      * @notice In extreme cases, the total deposit is 0, or the total margin is 0
+     * @param _pid is pool index
      */
     function emergencyBorrowWithdrawal(uint256 _pid) external nonReentrant notPause stateUndone(_pid) {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
@@ -455,6 +480,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     /**
      * @dev Can it be settle
+     * @param _pid is pool index
      */
     function checkoutSettle(uint256 _pid) public view returns(bool){
         return block.timestamp > poolBaseInfo[_pid].settleTime;
@@ -462,6 +488,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     /**
      * @dev  Settle
+     * @param _pid is pool index
      */
     function settle(uint256 _pid) public onlyOwner {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
@@ -496,6 +523,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     /**
      * @dev Can it be finish
+     * @param _pid is pool index
      */
     function checkoutFinish(uint256 _pid) public view returns(bool){
         return block.timestamp > poolBaseInfo[_pid].endTime;
@@ -503,6 +531,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     /**
      * @dev finish
+     * @param _pid is pool index
      */
     function finish(uint256 _pid) public onlyOwner {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
@@ -536,6 +565,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     /**
      * @dev Check liquidation conditions
+     * @param _pid is pool index
      */
     function checkoutLiquidate(uint256 _pid) external view returns(bool) {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
@@ -551,11 +581,13 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     /**
      * @dev Liquidation
+     * @param _pid is pool index
      */
     function liquidate(uint256 _pid) public onlyOwner {
         PoolDataInfo storage data = poolDataInfo[_pid];
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         require(block.timestamp > pool.settleTime, "now time is less than match time");
+        require(pool.state == PoolState.EXECUTION,"liquidate: pool state must be execution");
         // sellamount
         (address token0, address token1) = (pool.borrowToken, pool.lendToken);
         uint256 lendAmount = data.settleAmountLend.mul(pool.interestRate.add(baseDecimal)).div(baseDecimal);
