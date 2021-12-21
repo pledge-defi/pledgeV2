@@ -1,0 +1,1 @@
+npx hardhat verify --network rinkeby contract_address  "paramer"

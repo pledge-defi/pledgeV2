@@ -1,4 +1,3 @@
-const {web3} = require("@openzeppelin/test-environment");
 
 const BN = web3.utils.BN;
 async function latestBlock () {
