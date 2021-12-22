@@ -11,45 +11,39 @@ async function mockUniswap (minter, weth) {
     
 }
 // targetToken: {address: string, price: int}
-async function mockPairs(router, factory, weth, alice, targetTokens) {
-    let decimals = 1e6
-    const APPROVE_AMOUNT = 100000
-    let timestamp = new BN(new Date().getTime())
-    // add pair between tokens and eth
-    targetTokens.forEach(async (targetToken) => {
-        await targetToken.artifact.connect(alice).approve(router.address, APPROVE_AMOUNT * decimals);
-        
-        // let pair = await factory.getPair(targetToken.address, weth.address);
-        await router.connect(alice).addLiquidityETH(
-            targetToken.address,
-            decimals,
-            targetToken.price * decimals,// eth amount will be the price * decimals
-            targetToken.price * decimals,
-            alice.address,
-            timestamp.add(new BN(100000)).toString(), {value: decimals}
-        )
-    });
-    // add pair between tokens
-    targetTokens.forEach(async (targetToken1) => {
-        targetTokens.forEach(async (targetToken2) => {
-            if (targetToken1.address != targetToken2.address) {
-                await router.connect(alice).addLiquidity(
-                   targetToken1.address,
-                    targetToken2.address,
-                    targetToken2.price * decimals, // the deposit of token1 is the price of token2 * decimals
-                    targetToken1.price * decimals,
-                    targetToken2.price * decimals,
-                    targetToken1.price * decimals,
-                    alice.address,
-                    timestamp.add(new BN(100000)).toString()
-                )
-            }
-        })
-    })
-    
+async function mockAddLiquidity(router, token0, token1, minter, deadline,amount0,amount1) {
+    // approve
+    await token0.connect(minter).approve(router.address, BigInt(amount0));
+    await token1.connect(minter).approve(router.address, BigInt(amount1));
+    // add
+    await router.connect(minter).addLiquidity(
+            token0.address,
+            token1.address,
+            BigInt(amount0),
+            BigInt(amount1),
+            BigInt(0),
+            BigInt(0),
+            minter.address,
+            deadline
+        );
 }
+
+async function mockSwap(router,token0, swapAmount, minAmount,path,minter,deadline){
+    // approve
+    await token0.connect(minter).approve(router.address, BigInt(swapAmount));
+    // swap
+    await router.connect(minter).swapExactTokensForTokens(
+            BigInt(swapAmount),
+            BigInt(minAmount),
+            path,
+            minter.address,
+            deadline
+        );
+}
+
 
 module.exports = {
     mockUniswap,
-    mockPairs
+    mockSwap,
+    mockAddLiquidity
 };

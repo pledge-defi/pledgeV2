@@ -2,6 +2,8 @@ const { expect } = require("chai");
 const { show } = require("./helper/meta.js");
 const { initAll } = require("./helper/init.js");
 const {latestBlock, advanceBlockTo, latestBlockNum, stopAutoMine, latest, increase} = require("./helper/time.js");
+const {mockUniswap, mockAddLiquidity,mockSwap} = require('./helper/mockUniswap.js')
+const BN = web3.utils.BN;
 
 describe("PledgePool", function (){
     let busdAddress, btcAddress, spAddress,jpAddress, bscPledgeOracle, pledgeAddress;
@@ -109,7 +111,7 @@ describe("PledgePool", function (){
         expect(num[0]).to.be.equal(BigInt(1000000000000000000000).toString());
         // paused
         await pledgeAddress.connect(minter).setPause();
-        expect(pledgeAddress.connect(minter).depositLend(0, BigInt(1000*1e18))).to.be.revertedWith("Stake has been suspended");
+        expect(pledgeAddress.connect(minter).depositLend(0, BigInt(1000*1e18))).to.revertedWith("Stake has been suspended");
     });
 
     it("pool state check", async function (){
@@ -230,6 +232,144 @@ describe("PledgePool", function (){
 
     });
 
+    it ("lend burn sp token and borrow burn jp token, pool is finish", async function (){
+        await initCreatePoolInfo(pledgeAddress, minter, 100,200);
+        expect(await pledgeAddress.getPoolState(0)).to.equal(0);
+        // borrow
+        await btcAddress.connect(minter).approve(pledgeAddress.address, BigInt(500*1e18));
+        let timestamp = await latest();
+        let deadLine = timestamp + 100 ;
+        await pledgeAddress.connect(minter).depositBorrow(0, BigInt(500*1e18),deadLine);
+        // lend
+        await busdAddress.connect(minter).approve(pledgeAddress.address, BigInt(1000*1e18));
+        await pledgeAddress.connect(minter).depositLend(0, BigInt(1000*1e18));
+        // increase
+        await increase(1000);
+        // add  oracle price
+        await bscPledgeOracle.connect(minter).setPrice(busdAddress.address,BigInt(1e8));
+        await bscPledgeOracle.connect(minter).setPrice(btcAddress.address,BigInt(1e8));
+        // settle
+        await increase(1000);
+        await pledgeAddress.connect(minter).settle(0);
+        show(await pledgeAddress.getPoolState(0));
+        expect(await pledgeAddress.getPoolState(0)).to.equal(BigInt(1).toString(16));
+        // claim sp_token or jp_token
+        let poolDataInfo = await pledgeAddress.poolDataInfo(0);
+        show({poolDataInfo});
+        // sp and jp add minter
+        await spAddress.connect(minter).addMinter(pledgeAddress.address);
+        await jpAddress.connect(minter).addMinter(pledgeAddress.address);
+        // claim
+        await pledgeAddress.connect(minter).claimLend(0);
+        await pledgeAddress.connect(minter).claimBorrow(0);
+        expect(await spAddress.balanceOf(minter.address)).to.equal(BigInt( 250000000000000000000).toString());
+        expect(await jpAddress.balanceOf(minter.address)).to.equal(BigInt(500000000000000000000).toString());
+        await increase(3000);
+        // add liquidate
+        let deadLineAddLiquidate = timestamp + 1000;
+        let busdAmount = BigInt(1000000*1e18);
+        let btcAmount = BigInt(500000*1e18);
+        await mockAddLiquidity(router,busdAddress,btcAddress,minter,deadLineAddLiquidate,busdAmount,btcAmount);
+        // finish
+        await pledgeAddress.connect(minter).finish(0);
+        expect(await pledgeAddress.getPoolState(0)).to.equal(BigInt(2).toString(16));
+        let poolDataInfo1 = await pledgeAddress.poolDataInfo(0);
+        show({poolDataInfo1});
+        // burn sp tokne,harvest lend token + interest
+        let remainSp = await spAddress.balanceOf(minter.address);
+        show({remainSp});
+        await pledgeAddress.connect(minter).withdrawLend(0,remainSp);
+        // burn jp token, harvest borrow token
+        let remainJp = await jpAddress.balanceOf(minter.address);
+        show({remainJp});
+        await pledgeAddress.connect(minter).withdrawBorrow(0,remainJp,deadLineAddLiquidate);
+    });
+
+    it("lend burn sp token and borrow burn jp token, pool is liquidation",async function (){
+        await initCreatePoolInfo(pledgeAddress, minter, 100,200);
+        expect(await pledgeAddress.getPoolState(0)).to.equal(0);
+        // borrow
+        await btcAddress.connect(minter).approve(pledgeAddress.address, BigInt(500*1e18));
+        let timestamp = await latest();
+        let deadLine = timestamp + 100 ;
+        await pledgeAddress.connect(minter).depositBorrow(0, BigInt(500*1e18),deadLine);
+        // lend
+        await busdAddress.connect(minter).approve(pledgeAddress.address, BigInt(1000*1e18));
+        await pledgeAddress.connect(minter).depositLend(0, BigInt(1000*1e18));
+        // increase
+        await increase(1000);
+        // add  oracle price
+        await bscPledgeOracle.connect(minter).setPrice(busdAddress.address,BigInt(1e8));
+        await bscPledgeOracle.connect(minter).setPrice(btcAddress.address,BigInt(1e8));
+        // settle
+        await increase(1000);
+        await pledgeAddress.connect(minter).settle(0);
+        show(await pledgeAddress.getPoolState(0));
+        expect(await pledgeAddress.getPoolState(0)).to.equal(BigInt(1).toString(16));
+        // claim sp_token or jp_token
+        let poolDataInfo = await pledgeAddress.poolDataInfo(0);
+        show({poolDataInfo});
+        // sp and jp add minter
+        await spAddress.connect(minter).addMinter(pledgeAddress.address);
+        await jpAddress.connect(minter).addMinter(pledgeAddress.address);
+        // claim
+        await pledgeAddress.connect(minter).claimLend(0);
+        await pledgeAddress.connect(minter).claimBorrow(0);
+        expect(await spAddress.balanceOf(minter.address)).to.equal(BigInt( 250000000000000000000).toString());
+        expect(await jpAddress.balanceOf(minter.address)).to.equal(BigInt(500000000000000000000).toString());
+        await increase(3000);
+        // add liquidate
+        let deadLineAddLiquidate = timestamp + 1000;
+        let busdAmount = BigInt(1000000*1e18);
+        let btcAmount = BigInt(500000*1e18);
+        await mockAddLiquidity(router,busdAddress,btcAddress,minter,deadLineAddLiquidate,busdAmount,btcAmount);
+        // liquidation
+        // update oracle
+        await bscPledgeOracle.connect(minter).setPrice(busdAddress.address,BigInt(1e8));
+        await bscPledgeOracle.connect(minter).setPrice(btcAddress.address,BigInt(0.1*1e8));
+        // checkout liquation state
+        let result = await pledgeAddress.checkoutLiquidate(0);
+        show({result});
+        // liquadtion
+        await pledgeAddress.connect(minter).liquidate(0);
+        let poolDataInfo1 = await pledgeAddress.poolDataInfo(0);
+        show({poolDataInfo1});
+        // burn sp tokne,harvest lend token + interest
+        let remainSp = await spAddress.balanceOf(minter.address);
+        show({remainSp});
+        await pledgeAddress.connect(minter).withdrawLend(0,remainSp);
+        // burn jp token, harvest borrow token
+        let remainJp = await jpAddress.balanceOf(minter.address);
+        show({remainJp});
+        await pledgeAddress.connect(minter).withdrawBorrow(0,remainJp,deadLineAddLiquidate);
+    });
+
+    it("time condition,time Before", async function (){
+        // create pool info
+        await initCreatePoolInfo(pledgeAddress,minter, 100, 200);
+        await busdAddress.connect(minter).approve(pledgeAddress.address, BigInt(2000*1e18));
+        // deposit lend
+        await pledgeAddress.connect(minter).depositLend(0, BigInt(1000*1e18));
+        // check info
+        let num = await pledgeAddress.userLendInfo(minter.address,0);
+        expect(num[0]).to.be.equal(BigInt(1000000000000000000000).toString());
+        await increase(100000);
+        expect(pledgeAddress.connect(minter).depositLend(0, BigInt(1000*1e18))).to.revertedWith("Less than this time");
+    });
+
+    it("time condition, time before", async function (){
+       // create pool info
+        await initCreatePoolInfo(pledgeAddress,minter, 100, 200);
+        await busdAddress.connect(minter).approve(pledgeAddress.address, BigInt(2000*1e18));
+        // deposit lend
+        await pledgeAddress.connect(minter).depositLend(0, BigInt(1000*1e18));
+        // check info
+        let num = await pledgeAddress.userLendInfo(minter.address,0);
+        expect(num[0]).to.be.equal(BigInt(1000000000000000000000).toString());
+        // claim
+        expect(pledgeAddress.connect(minter).claimLend(0)).to.revertedWith("Greate than this time");
+
+    });
 
 })
 
