@@ -99,6 +99,7 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
     event Swap(address indexed fromCoin,address indexed toCoin,uint256 fromValue,uint256 toValue);
     event EmergencyBorrowWithdrawal(address indexed from, address indexed token, uint256 amount);
     event EmergencyLendWithdrawal(address indexed from, address indexed token, uint256 amount);
+    event StateChange(uint256 indexed pid, uint256 indexed beforeState, uint256 indexed afterState);
 
     constructor(
         address _oracle,
@@ -513,11 +514,15 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
             }
             // update pool state
             pool.state = PoolState.EXECUTION;
+            // event
+            emit StateChange(_pid,uint256(PoolState.MATCH), uint256(PoolState.EXECUTION));
         } else {
             // extreme case, Either lend or borrow is 0
             pool.state = PoolState.UNDONE;
             data.settleAmountLend = pool.lendSupply;
             data.settleAmountBorrow = pool.borrowSupply;
+            //event
+            emit StateChange(_pid,uint256(PoolState.MATCH), uint256(PoolState.UNDONE));
         }
     }
 
@@ -560,6 +565,8 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         data.finishAmountBorrow = remianLendAmount;
         // update pool state
         pool.state = PoolState.FINISH;
+        // event
+        emit StateChange(_pid,uint256(PoolState.EXECUTION), uint256(PoolState.FINISH));
     }
 
 
@@ -609,6 +616,8 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         data.liquidationAmounBorrow = remianBorrowAmount;
         // update pool state
         pool.state = PoolState.LIQUIDATION;
+         // event
+        emit StateChange(_pid,uint256(PoolState.EXECUTION), uint256(PoolState.LIQUIDATION));
     }
 
 
