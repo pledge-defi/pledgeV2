@@ -14,13 +14,13 @@ async function main() {
 
   console.log(
     "Deploying contracts with the account:",
-    deployerMin.address
+    deployerMax.address
   );
 
-  console.log("Account balance:", (await deployerMin.getBalance()).toString());
+  console.log("Account balance:", (await deployerMax.getBalance()).toString());
 
   const multiSignatureToken = await ethers.getContractFactory("multiSignature");
-  const multiSignature = await multiSignatureToken.connect(deployerMin).deploy(multiSignatureAddress, threshold);
+  const multiSignature = await multiSignatureToken.connect(deployerMax).deploy(multiSignatureAddress, threshold);
 
   console.log("multiSignature address:", multiSignature.address);
 }
