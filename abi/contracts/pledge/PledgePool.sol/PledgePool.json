@@ -15,6 +15,11 @@
         "internalType": "address payable",
         "name": "_feeAddress",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_multiSignature",
+        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -188,25 +193,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "previousOwner",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "newOwner",
-        "type": "address"
-      }
-    ],
-    "name": "OwnershipTransferred",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "recieptor",
         "type": "address"
       },
@@ -274,6 +260,82 @@
       }
     ],
     "name": "RefundLend",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "newLendFee",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "newBorrowFee",
+        "type": "uint256"
+      }
+    ],
+    "name": "SetFee",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oldFeeAddress",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newFeeAddress",
+        "type": "address"
+      }
+    ],
+    "name": "SetFeeAddress",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "oldMinAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "newMinAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "SetMinAmount",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oldSwapAddress",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newSwapAddress",
+        "type": "address"
+      }
+    ],
+    "name": "SetSwapRouterAddress",
     "type": "event"
   },
   {
@@ -559,11 +621,6 @@
         "internalType": "uint256",
         "name": "_stakeAmount",
         "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_deadLine",
-        "type": "uint256"
       }
     ],
     "name": "depositBorrow",
@@ -639,6 +696,19 @@
     "name": "finish",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getMultiSignatureAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -737,19 +807,6 @@
     "outputs": [
       {
         "internalType": "contract IBscPledgeOracle",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "owner",
-    "outputs": [
-      {
-        "internalType": "address",
         "name": "",
         "type": "address"
       }
@@ -920,13 +977,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "renounceOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -1020,47 +1070,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "newOwner",
-        "type": "address"
-      }
-    ],
-    "name": "transferOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_pid",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint64",
-        "name": "_interestRate",
-        "type": "uint64"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_maxSupply",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_autoLiquidateThreshold",
-        "type": "uint256"
-      }
-    ],
-    "name": "updatePoolBaseInfo",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "",
         "type": "address"
       },
@@ -1145,11 +1154,6 @@
       {
         "internalType": "uint256",
         "name": "_jpAmount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_deadLine",
         "type": "uint256"
       }
     ],

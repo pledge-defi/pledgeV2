@@ -2,18 +2,19 @@
 
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "../multiSignature/multiSignatureClient.sol";
 import "@chainlink/contracts/src/v0.6/interfaces/AggregatorV3Interface.sol";
 
 
 
-contract BscPledgeOracle is Ownable {
+contract BscPledgeOracle is multiSignatureClient {
+
     mapping(uint256 => AggregatorV3Interface) internal assetsMap;
     mapping(uint256 => uint256) internal decimalsMap;
     mapping(uint256 => uint256) internal priceMap;
     uint256 internal decimals = 1;
 
-    constructor() public {
+    constructor(address multiSignature) multiSignatureClient(multiSignature) public {
 //        //  bnb/USD
 //        assetsMap[uint256(0x0000000000000000000000000000000000000000)] = AggregatorV3Interface(0x2514895c72f50D8bd4B4F9b1110F0D6bD2c97526);
 //        // DAI/USD
@@ -36,7 +37,7 @@ contract BscPledgeOracle is Ownable {
       * @dev function to update precision for an asset
       * @param newDecimals replacement oldDecimal
       */
-    function setDecimals(uint256 newDecimals) public onlyOwner{
+    function setDecimals(uint256 newDecimals) public validCall{
         decimals = newDecimals;
     }
 
@@ -46,7 +47,7 @@ contract BscPledgeOracle is Ownable {
       * @dev function to update prices for an asset
       * @param prices replacement oldPrices
       */
-    function setPrices(uint256[]memory assets,uint256[]memory prices) public onlyOwner {
+    function setPrices(uint256[]memory assets,uint256[]memory prices) external validCall {
         require(assets.length == prices.length, "input arrays' length are not equal");
         uint256 len = assets.length;
         for (uint i=0;i<len;i++){
@@ -109,7 +110,7 @@ contract BscPledgeOracle is Ownable {
       * @param asset Asset for which to set the price
       * @param price the Asset's price
       */
-    function setPrice(address asset,uint256 price) public onlyOwner {
+    function setPrice(address asset,uint256 price) public validCall {
         priceMap[uint256(asset)] = price;
     }
 
@@ -119,7 +120,7 @@ contract BscPledgeOracle is Ownable {
       * @param underlying underlying for which to set the price
       * @param price the underlying's price
       */
-    function setUnderlyingPrice(uint256 underlying,uint256 price) public onlyOwner {
+    function setUnderlyingPrice(uint256 underlying,uint256 price) public validCall {
         require(underlying>0 , "underlying cannot be zero");
         priceMap[underlying] = price;
     }
@@ -130,7 +131,7 @@ contract BscPledgeOracle is Ownable {
       * @param asset Asset for which to set the price
       * @param aggergator the Asset's aggergator
       */
-    function setAssetsAggregator(address asset,address aggergator,uint256 _decimals) public onlyOwner {
+    function setAssetsAggregator(address asset,address aggergator,uint256 _decimals) public validCall {
         assetsMap[uint256(asset)] = AggregatorV3Interface(aggergator);
         decimalsMap[uint256(asset)] = _decimals;
     }
@@ -141,7 +142,7 @@ contract BscPledgeOracle is Ownable {
       * @param underlying underlying for which to set the price
       * @param aggergator the underlying's aggergator
       */
-    function setUnderlyingAggregator(uint256 underlying,address aggergator,uint256 _decimals) public onlyOwner {
+    function setUnderlyingAggregator(uint256 underlying,address aggergator,uint256 _decimals) public validCall {
         require(underlying>0 , "underlying cannot be zero");
         assetsMap[underlying] = AggregatorV3Interface(aggergator);
         decimalsMap[underlying] = _decimals;
