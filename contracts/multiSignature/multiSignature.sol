@@ -40,6 +40,7 @@ library whiteListAddress{
 
 
 contract multiSignature  is multiSignatureClient {
+    uint256 private constant defaultIndex = 0;
     using whiteListAddress for address[];
     address[] public signatureOwners;
     uint256 public threshold;
@@ -73,14 +74,14 @@ contract multiSignature  is multiSignatureClient {
         return index;
     }
 
-    function signApplication(bytes32 msghash,uint256 index) external onlyOwner validIndex(msghash,index){
-        emit SignApplication(msg.sender,msghash,index);
-        signatureMap[msghash][index].signatures.addWhiteListAddress(msg.sender);
+    function signApplication(bytes32 msghash) external onlyOwner validIndex(msghash,defaultIndex){
+        emit SignApplication(msg.sender,msghash,defaultIndex);
+        signatureMap[msghash][defaultIndex].signatures.addWhiteListAddress(msg.sender);
     }
 
-    function revokeSignApplication(bytes32 msghash,uint256 index) external onlyOwner validIndex(msghash,index){
-        emit RevokeApplication(msg.sender,msghash,index);
-        signatureMap[msghash][index].signatures.removeWhiteListAddress(msg.sender);
+    function revokeSignApplication(bytes32 msghash) external onlyOwner validIndex(msghash,defaultIndex){
+        emit RevokeApplication(msg.sender,msghash,defaultIndex);
+        signatureMap[msghash][defaultIndex].signatures.removeWhiteListAddress(msg.sender);
     }
 
     function getValidSignature(bytes32 msghash,uint256 lastIndex) external view returns(uint256){
