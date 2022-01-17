@@ -5,21 +5,21 @@
 // Runtime Environment's members available in the global scope.
 
 
-let multiSignatureAddress = "0xeF75E3A7315BD1c023677f4DdAA951A0Bb503C6D";
+// let multiSignatureAddress = "0xeF75E3A7315BD1c023677f4DdAA951A0Bb503C6D";
 
 async function main() {
 
-  const [deployerMax,,,,deployerMin] = await ethers.getSigners();
+  const [deployer,,,,] = await ethers.getSigners();
 
   console.log(
     "Deploying contracts with the account:",
-    deployerMin.address
+    deployer.address
   );
 
-  console.log("Account balance:", (await deployerMin.getBalance()).toString());
+  console.log("Account balance:", (await deployer.getBalance()).toString());
 
   const oracleToken = await ethers.getContractFactory("BscPledgeOracle");
-  const oracle = await oracleToken.connect(deployerMin).deploy(multiSignatureAddress);
+  const oracle = await oracleToken.deploy();
 
   console.log("Oracle address:", oracle.address);
 }

@@ -2,16 +2,13 @@
 
 pragma solidity 0.6.12;
 
-import "../multiSignature/multiSignatureClient.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 
 /**
  * @dev Collection of functions related to the address type
  */
-contract AddressPrivileges is multiSignatureClient {
-
-    constructor(address multiSignature) multiSignatureClient(multiSignature) public {
-    }
+contract AddressPrivileges is Ownable {
 
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private _minters;
@@ -22,7 +19,7 @@ contract AddressPrivileges is multiSignatureClient {
       * @param _addMinter add a  minter address
       # @return true or false
       */
-    function addMinter(address _addMinter) public validCall returns (bool) {
+    function addMinter(address _addMinter) public onlyOwner returns (bool) {
         require(_addMinter != address(0), "Token: _addMinter is the zero address");
         return EnumerableSet.add(_minters, _addMinter);
     }
@@ -33,7 +30,7 @@ contract AddressPrivileges is multiSignatureClient {
       * @param _delMinter delete a minter address
       # @return true or false
       */
-    function delMinter(address _delMinter) public validCall returns (bool) {
+    function delMinter(address _delMinter) public onlyOwner returns (bool) {
         require(_delMinter != address(0), "Token: _delMinter is the zero address");
         return EnumerableSet.remove(_minters, _delMinter);
     }

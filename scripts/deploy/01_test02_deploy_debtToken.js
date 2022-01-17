@@ -6,21 +6,21 @@
 
 let tokenName = "spBUSD_1";
 let tokenSymbol = "spBUSD_1";
-let multiSignatureAddress = "0xeF75E3A7315BD1c023677f4DdAA951A0Bb503C6D";
+// let multiSignatureAddress = "0xeF75E3A7315BD1c023677f4DdAA951A0Bb503C6D";
 
 async function main() {
 
-  const [deployerMax,,,,deployerMin] = await ethers.getSigners();
+  const [deployer,,,,] = await ethers.getSigners();
 
   console.log(
     "Deploying contracts with the account:",
-    deployerMin.address
+    deployer.address
   );
 
-  console.log("Account balance:", (await deployerMin.getBalance()).toString());
+  console.log("Account balance:", (await deployer.getBalance()).toString());
 
   const debtToken = await ethers.getContractFactory("DebtToken");
-  const DebtToken = await debtToken.connect(deployerMin).deploy(tokenName,tokenSymbol,multiSignatureAddress);
+  const DebtToken = await debtToken.deploy(tokenName,tokenSymbol);
 
   console.log("DebtToken address:", DebtToken.address);
 }

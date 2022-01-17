@@ -3,15 +3,16 @@
 pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "../library/SafeTransfer.sol";
 import "../interface/IDebtToken.sol";
 import "../interface/IBscPledgeOracle.sol";
 import "../interface/IUniswapV2Router02.sol";
-import "../multiSignature/multiSignatureClient.sol";
 
 
 
-contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
+
+contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
 
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -111,9 +112,8 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
     constructor(
         address _oracle,
         address _swapRouter,
-        address payable _feeAddress,
-        address _multiSignature
-    ) multiSignatureClient(_multiSignature) public {
+        address payable _feeAddress
+    )  public {
         require(_oracle != address(0), "Is zero address");
         require(_swapRouter != address(0), "Is zero address");
         require(_feeAddress != address(0), "Is zero address");
@@ -129,7 +129,7 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
      * @dev Set the lend fee and borrow fee
      * @notice Only allow administrators to operate
      */
-    function setFee(uint256 _lendFee,uint256 _borrowFee) validCall external{
+    function setFee(uint256 _lendFee,uint256 _borrowFee) onlyOwner external{
         lendFee = _lendFee;
         borrowFee = _borrowFee;
         emit SetFee(_lendFee, _borrowFee);
@@ -139,7 +139,7 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
      * @dev Set swap router address, example pancakeswap or babyswap..
      * @notice Only allow administrators to operate
      */
-    function setSwapRouterAddress(address _swapRouter) validCall external{
+    function setSwapRouterAddress(address _swapRouter) onlyOwner external{
         require(_swapRouter != address(0), "Is zero address");
         emit SetSwapRouterAddress(swapRouter,_swapRouter);
         swapRouter = _swapRouter;
@@ -149,7 +149,7 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
      * @dev Set up the address to receive the handling fee
      * @notice Only allow administrators to operate
      */
-    function setFeeAddress(address payable _feeAddress) validCall external {
+    function setFeeAddress(address payable _feeAddress) onlyOwner external {
         require(_feeAddress != address(0), "Is zero address");
         emit SetFeeAddress(feeAddress, _feeAddress);
         feeAddress = _feeAddress;
@@ -158,7 +158,7 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
     /**
      * @dev Set the min amount
      */
-    function setMinAmount(uint256 _minAmount) validCall external {
+    function setMinAmount(uint256 _minAmount) onlyOwner external {
         emit SetMinAmount(minAmount,_minAmount);
         minAmount = _minAmount;
     }
@@ -176,7 +176,7 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
      */
     function createPoolInfo(uint256 _settleTime,  uint256 _endTime, uint64 _interestRate,
                         uint256 _maxSupply, uint256 _martgageRate, address _lendToken, address _borrowToken,
-                    address _spToken, address _jpToken, uint256 _autoLiquidateThreshold) public validCall{
+                    address _spToken, address _jpToken, uint256 _autoLiquidateThreshold) public onlyOwner{
         // check if token has been set ...
         require(_endTime > _settleTime, "createPool:end time grate than settle time");
         require(_jpToken != address(0), "createPool:is zero address");
@@ -490,7 +490,7 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
      * @dev  Settle
      * @param _pid is pool index
      */
-    function settle(uint256 _pid) public validCall {
+    function settle(uint256 _pid) public onlyOwner {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
         require(block.timestamp > poolBaseInfo[_pid].settleTime, "settle: less than settleTime");
@@ -537,7 +537,7 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
      * @dev finish
      * @param _pid is pool index
      */
-    function finish(uint256 _pid) public validCall {
+    function finish(uint256 _pid) public onlyOwner {
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         PoolDataInfo storage data = poolDataInfo[_pid];
         require(block.timestamp > poolBaseInfo[_pid].endTime, "finish: less than end time");
@@ -591,7 +591,7 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
      * @dev Liquidation
      * @param _pid is pool index
      */
-    function liquidate(uint256 _pid) public validCall {
+    function liquidate(uint256 _pid) public onlyOwner {
         PoolDataInfo storage data = poolDataInfo[_pid];
         PoolBaseInfo storage pool = poolBaseInfo[_pid];
         require(block.timestamp > pool.settleTime, "now time is less than match time");
@@ -712,7 +712,7 @@ contract PledgePool is ReentrancyGuard, SafeTransfer, multiSignatureClient{
     /**
      * @dev set Pause
      */
-    function setPause() public validCall {
+    function setPause() public onlyOwner {
         globalPaused = !globalPaused;
     }
 

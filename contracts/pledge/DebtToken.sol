@@ -8,7 +8,7 @@ import "./AddressPrivileges.sol";
 
 contract DebtToken is ERC20, AddressPrivileges {
 
-    constructor(string memory _name, string memory _symbol, address multiSignature) public ERC20(_name, _symbol) AddressPrivileges(multiSignature) {
+    constructor(string memory _name, string memory _symbol) public ERC20(_name, _symbol)  {
     }
 
     /**
