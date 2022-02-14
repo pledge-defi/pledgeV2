@@ -4,9 +4,9 @@
 // When running the script with `hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
 
-let tokenName = "spBUSD_1";
-let tokenSymbol = "spBUSD_1";
-let multiSignatureAddress = "0xeF75E3A7315BD1c023677f4DdAA951A0Bb503C6D";
+let tokenName = "spBTC_1";
+let tokenSymbol = "spBTC_1";
+let multiSignatureAddress = "0xcdC5A05A0A68401d5FCF7d136960CBa5aEa990Dd";
 
 async function main() {
 
