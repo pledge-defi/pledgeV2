@@ -19,6 +19,10 @@ pledge V2 contract
 - BUSD--BTC
 - CAKE--BUSD
 
+#### new address
+- Oracle address: 0x4F72DFa7E151767eC583bbaE7cf878Ed12d6c111
+- PLEDGE address: 0x80a4D82f1879c7933ee9aa266E8580abaaa9b7c2
+
 
 ####  (1) BSC MAIN NETWORK CONTRACTS (Internal beta version)
 #### Note: For internal test builds only
@@ -43,3 +47,7 @@ pledge V2 contract
 - SWAP ADDRESS(pancake swap): 0x10ED43C718714eb63d5aA57B78B54704E256024E
 - FEE ADDRESS： 0x2035F495e69FC970d8916E18Fc977F0Cb09883d0
 - PLEDGE ADDRESS: 0x78CE5055149Dc30755612209f9d9A98f36fb022E
+
+#### new address
+- Oracle address: 0x4Aa9EB3149089D7208C9C0403BF1b9bA25ff05BD
+- PLEDGE address: 0x25C3f3d3E3299d7C56700CE54303Fbe1E6a16fee
