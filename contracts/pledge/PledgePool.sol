@@ -544,10 +544,13 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         require(pool.state == PoolState.EXECUTION,"finish: pool state must be execution");
         // parameter
         (address token0, address token1) = (pool.borrowToken, pool.lendToken);
-        // total rate = ((end time - settle time) * baseDecimal)/365 DAYS
-        uint256 totalInterestRate = ((pool.endTime.sub(pool.settleTime)).mul(baseDecimal)).div(baseYear);
-        // sellAmount = (lend*(1+rate))*(1+lendFee)
-        uint256 lendAmount = data.settleAmountLend.mul(totalInterestRate.add(baseDecimal)).div(baseDecimal);
+        // time ratio = ((end time - settle time) * baseDecimal)/365 DAYS
+        uint256 timeRatio = ((pool.endTime.sub(pool.settleTime)).mul(baseDecimal)).div(baseYear);
+        // interest = time Ratio * interestRate * settleAmountLend
+        uint256 interest = timeRatio.mul(pool.interestRate.mul(data.settleAmountLend)).div(1e16);
+        // lendAmount = data.settleAmountLend + interest
+        uint256 lendAmount = data.settleAmountLend.add(interest);
+        // sellamount = lendAmount*(1+lendFee)
         uint256 sellAmount = lendAmount.mul(lendFee.add(baseDecimal)).div(baseDecimal);
         (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,sellAmount);
         // '>' lend fee is not 0 , '=' lendfee is 0
@@ -598,9 +601,13 @@ contract PledgePool is ReentrancyGuard, Ownable, SafeTransfer{
         require(pool.state == PoolState.EXECUTION,"liquidate: pool state must be execution");
         // sellamount
         (address token0, address token1) = (pool.borrowToken, pool.lendToken);
-        // total rate = ((end time - settle time) * baseDecimal)/365 DAYS
-        uint256 totalInterestRate = ((pool.endTime.sub(pool.settleTime)).mul(baseDecimal)).div(baseYear);
-        uint256 lendAmount = data.settleAmountLend.mul(totalInterestRate.add(baseDecimal)).div(baseDecimal);
+        // time ratio = ((end time - settle time) * baseDecimal)/365 DAYS
+        uint256 timeRatio = ((pool.endTime.sub(pool.settleTime)).mul(baseDecimal)).div(baseYear);
+        // interest = time Ratio * interestRate * settleAmountLend
+        uint256 interest = timeRatio.mul(pool.interestRate.mul(data.settleAmountLend)).div(1e16);
+        // lendAmount = data.settleAmountLend + interest
+        uint256 lendAmount = data.settleAmountLend.add(interest);
+        // sellamount = lendAmount*(1+lendFee)
         // Add lend fee
         uint256 sellAmount = lendAmount.mul(lendFee.add(baseDecimal)).div(baseDecimal);
         (uint256 amountSell,uint256 amountIn) = _sellExactAmount(swapRouter,token0,token1,sellAmount);
